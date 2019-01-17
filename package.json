@@ -1,0 +1,17 @@
+{
+  "name": "slackbot-service-interruption",
+  "version": "0.0.1",
+  "description": "Slackbot serving to provide with a from to submit information about service interruptions into the relevant slack channel",
+  "main": "index.js",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.4",
+    "request": "^2.88.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Vitaly Sokolov",
+  "license": "ISC"
+}
