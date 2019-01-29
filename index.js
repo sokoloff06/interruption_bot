@@ -7,8 +7,8 @@ const Store = require('data-store');
 
 const app = express();
 const store = new Store({ path: 'auth.json' })
-const client_id = "511220587186.511052758372";
-const client_secret = "b1f35600428d73ffdcb625e3e99ec59c";
+const client_id = "";
+const client_secret = "";
 
 
 // Workspace credentials and params
