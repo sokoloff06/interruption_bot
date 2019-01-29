@@ -85,9 +85,10 @@ function confirmPublish(form, chnl) {
     var text = "<!here>" +
         "\n*Start Time:*\n" + form.start_time +
         "\n*Cause:*\n" + form.cause +
-        "\n*Impact:*\n" + form.impact +
+        "\n*Issue and impact description:*\n" + form.impact +
         "\n*" + form.next_steps + ":*" +
-        "\n" + form.time;
+        "\n" + form.time +
+        "\n*For any further questions please contact Support.*";
 
 
     request.post('https://slack.com/api/chat.postMessage', {
