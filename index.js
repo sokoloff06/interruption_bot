@@ -18,7 +18,7 @@ var botUser;
 var teamName;
 var interChannel = ''; //ID of the interruption channel
 
-// Accesing params from the storage file if it exists
+// Loading params from the storage file to RAM if it exists
 if (store.has('appToken')) {
     appToken = store.get('appToken');
     botToken = store.get('botToken');
@@ -224,9 +224,11 @@ app.post('/', (req, res) => {
     channel = body.channel_id;
     var trigger_id = body.trigger_id;
     if(interChannel != '' && interChannel != null) {
+        res.send();
         openDialog(trigger_id);
     }
     else if ((interChannel == '' || interChannel == null) && (store.get('channel_id') != '' && store.get('channel_id') != null)) {
+        res.send();
         interChannel = store.get('channel_id');
         openDialog(trigger_id);
     }
