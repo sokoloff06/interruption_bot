@@ -16,7 +16,7 @@ var appToken;
 var botToken;
 var botUser;
 var teamName;
-var interChannel = null; //ID of the interruption channel
+var interChannel = ''; //ID of the interruption channel
 
 // Accesing params from the storage file if it exists
 if (store.has('appToken')) {
@@ -133,98 +133,105 @@ function confirmPublish(form, chnl) {
     })
 };
 
-// "report" command handler. Opens up the dialog in slack
+// Opens up the dialog in slack
+function openDialog(trigger_id) {
+    request.post('https://slack.com/api/dialog.open', {
+        json: {
+            'dialog': {
+                'callback_id': 'dialog-open',
+                'title': 'Report interruption',
+                'submit_label': 'Report',
+                'state': 'Limo',
+                'elements': [
+                    {
+                        'type': 'text',
+                        'label': 'Start Time',
+                        'name': 'start_time',
+                        'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                    },
+                    // {
+                    //     'type': 'text',
+                    //     'label': 'End Time',
+                    //     'name': 'end_time',
+                    //     'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                    // },
+                    {
+                        'type': 'select',
+                        'label': 'Cause',
+                        'name': 'cause',
+                        'options': [
+                            {
+                                'label': 'Issue with a vendor',
+                                'value': 'Issue with a vendor'
+                            },
+                            {
+                                'label': 'Issue with a business partner',
+                                'value': 'Issue with a business partner'
+                            },
+                            {
+                                'label': 'Internal system issue',
+                                'value': 'Internal system issue'
+                            }
+                        ]
+                    },
+                    {
+                        'type': 'textarea',
+                        'name': 'impact',
+                        'label': 'Issue and impact',
+                        'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
+                        'placeholder': 'Which features are affected? Is there any data loss? What is the expected experience in the system a compared to the steady state?'
+                    },
+                    {
+                        'type': 'select',
+                        'label': 'Next Steps',
+                        'name': 'next_steps',
+                        'options': [
+                            {
+                                'label': 'Status update',
+                                'value': 'Next Status Update Time'
+                            },
+                            {
+                                'label': 'Resolution',
+                                'value': 'Expected Resolution Time'
+                            }
+                        ]
+                    },
+                    {
+                        'type': 'text',
+                        'label': 'Update/Resolution time',
+                        'name': 'time',
+                        'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                    },
+
+                ]
+            },
+            'trigger_id': trigger_id
+        },
+        headers: {
+            'Content-type': 'application/json',
+            'Authorization': 'Bearer ' + appToken
+        }
+    }, (error, response) => {
+        if (response.statusCode != 200) {
+            console.log(error);
+        }
+    });
+}
+
+// "report" command handler, checks if channel ID is specified and opens dialog
 app.post('/', (req, res) => {
     var body = req.body;
     channel = body.channel_id;
     var trigger_id = body.trigger_id;
-
-    if (interChannel == null) {
-        res.send("Please, add ID of the service interruption channel (as channel_id) to the auth.json file of the app");
+    if(interChannel != '' && interChannel != null) {
+        openDialog(trigger_id);
+    }
+    else if ((interChannel == '' || interChannel == null) && (store.get('channel_id') != '' && store.get('channel_id') != null)) {
+        interChannel = store.get('channel_id');
+        openDialog(trigger_id);
     }
     else {
-        res.send();
-        request.post('https://slack.com/api/dialog.open', {
-            json: {
-                'dialog': {
-                    'callback_id': 'dialog-open',
-                    'title': 'Report interruption',
-                    'submit_label': 'Report',
-                    'state': 'Limo',
-                    'elements': [
-                        {
-                            'type': 'text',
-                            'label': 'Start Time',
-                            'name': 'start_time',
-                            'placeholder': 'e.g. March 16 2018 15:28 UTC'
-                        },
-                        // {
-                        //     'type': 'text',
-                        //     'label': 'End Time',
-                        //     'name': 'end_time',
-                        //     'placeholder': 'e.g. March 16 2018 15:28 UTC'
-                        // },
-                        {
-                            'type': 'select',
-                            'label': 'Cause',
-                            'name': 'cause',
-                            'options': [
-                                {
-                                    'label': 'Issue with a vendor',
-                                    'value': 'Issue with a vendor'
-                                },
-                                {
-                                    'label': 'Issue with a business partner',
-                                    'value': 'Issue with a business partner'
-                                },
-                                {
-                                    'label': 'Internal system issue',
-                                    'value': 'Internal system issue'
-                                }
-                            ]
-                        },
-                        {
-                            'type': 'textarea',
-                            'name': 'impact',
-                            'label': 'Issue and impact',
-                            'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
-                            'placeholder': 'Which features are affected? Is there any data loss? What is the expected experience in the system a compared to the steady state?'
-                        },
-                        {
-                            'type': 'select',
-                            'label': 'Next Steps',
-                            'name': 'next_steps',
-                            'options': [
-                                {
-                                    'label': 'Status update',
-                                    'value': 'Next Status Update Time'
-                                },
-                                {
-                                    'label': 'Resolution',
-                                    'value': 'Expected Resolution Time'
-                                }
-                            ]
-                        },
-                        {
-                            'type': 'text',
-                            'label': 'Update/Resolution time',
-                            'name': 'time',
-                            'placeholder': 'e.g. March 16 2018 15:28 UTC'
-                        },
-
-                    ]
-                },
-                'trigger_id': trigger_id
-            },
-            headers: {
-                'Content-type': 'application/json',
-                'Authorization': 'Bearer ' + appToken
-            }
-        }, (error, response) => {
-            if (response.statusCode != 200) {
-                console.log(error);
-            }
-        });
+        res.send("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server");
     }
 });
 
@@ -283,12 +290,12 @@ app.get('/auth', (req, resp) => {
         store.set('teamName', teamName);
         user = response.user_id;
         store.set('admin_user', user);
-        store.set('channel_id', null);
+        store.set('channel_id', '');
 
         // Redirect to slack
         resp.redirect('https://' + teamName + '.slack.com/messages/' + botUser);
 
         // Get interruption channel ID
-        postMessage("Please, add ID of the service interruption channel (as channel_id) to the auth.json file of the app", user);
+        postMessage("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server", user);
     });
 });
