@@ -63,3 +63,6 @@ typings/
 # VSCode config
 .vscode/
 .DS_Store
+
+# App creds
+auth.json
