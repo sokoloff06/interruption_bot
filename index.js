@@ -7,8 +7,8 @@ const Store = require('data-store');
 
 const app = express();
 const store = new Store({ path: 'auth.json' })
-const client_id = "";
-const client_secret = "";
+const client_id = "511220587186.511052758372";
+const client_secret = "b1f35600428d73ffdcb625e3e99ec59c";
 
 
 // Workspace credentials and params
@@ -41,11 +41,17 @@ app.listen(port, () => console.log(`App listening on port ${port}!`))
 
 // text(required) - String message to post
 // channel(required) - String ID of a channel to post message to
+// username
 // isReplace - boolean flag indicating if we want new message to replace previous message
 // response_url - String unique URL that is being used if our message is sent in response to another
-// asUser - boolean flag, currently not used. For future if we add functionality to post messages as user
-function postMessage(text, channel, isReplace = false, response_url, asUser = false) {
+// asUser - boolean flag, currently used to refer to a person submitted the message.
+function postMessage(text, channel, isReplace = false, response_url, asUser = false, user) {
     var token = botToken;
+
+    if (asUser) {
+        text = text + '\n_Submitted by <@' + user + '>_';
+    }
+
     var body = {
         "channel": channel,
         "text": text
@@ -53,10 +59,6 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
 
     if (isReplace) {
         body.delete_original = true;
-    }
-    if (asUser) {
-        body.as_user = false;
-        token = userToken;
     }
 
     var url;
@@ -84,8 +86,8 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
 function confirmPublish(form, chnl) {
     var text = "<!here>" +
         "\n*Start Time:*\n" + form.start_time +
-        "\n*Cause:*\n" + form.cause +
-        "\n*Issue and impact description:*\n" + form.impact +
+        "\n*Issue and cause:*\n" + form.issue +
+        "\n*Impact:*\n" + form.impact +
         "\n*" + form.next_steps + ":*" +
         "\n" + form.time +
         "\n*For any further questions please contact Support.*";
@@ -157,30 +159,17 @@ function openDialog(trigger_id) {
                     //     'placeholder': 'e.g. March 16 2018 15:28 UTC'
                     // },
                     {
-                        'type': 'select',
-                        'label': 'Cause',
-                        'name': 'cause',
-                        'options': [
-                            {
-                                'label': 'Issue with a vendor',
-                                'value': 'Issue with a vendor'
-                            },
-                            {
-                                'label': 'Issue with a business partner',
-                                'value': 'Issue with a business partner'
-                            },
-                            {
-                                'label': 'Internal system issue',
-                                'value': 'Internal system issue'
-                            }
-                        ]
+                        'type': 'textarea',
+                        'label': 'Issue description',
+                        'name': 'issue',
+                        'hint': 'Please specify what happened and what caused it'
                     },
                     {
                         'type': 'textarea',
                         'name': 'impact',
-                        'label': 'Issue and impact',
+                        'label': 'Impact',
                         'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
-                        'placeholder': 'Which features are affected? Is there any data loss? What is the expected experience in the system a compared to the steady state?'
+                        'placeholder': '• Which features are affected?\n• Is there any data loss?\n• What is the expected experience in the system a compared to the steady state?'
                     },
                     {
                         'type': 'select',
@@ -254,7 +243,8 @@ app.post('/postReport', (req, res) => {
     else if (payload.callback_id = "publish") {
         res.send();
         if (payload.actions[0].value == "yes") {
-            postMessage(payload.original_message.attachments[0].text, interChannel/*, false, false, false*/);
+            var user = payload.user.id;
+            postMessage(payload.original_message.attachments[0].text, interChannel, false, false, true, user);
             postMessage("Thanks for sumitting service interruption details!", payload.channel.id, true, payload.response_url);
         }
         else {
@@ -302,3 +292,7 @@ app.get('/auth', (req, resp) => {
         postMessage("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server", user);
     });
 });
+
+app.post('/push-test', (req, res) => {
+    res.send();
+})
