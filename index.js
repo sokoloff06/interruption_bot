@@ -1,39 +1,64 @@
+// This app is only tested and designed to work with a single workspace yet
+// TODO: Make a post on the submitter's behalf
+
 const express = require('express');
 const request = require('request');
+const Store = require('data-store');
+
 const app = express();
-const appToken = "xoxp-511220587186-512622329046-522547343265-ff438c068f5ba0c1619d1baf0d994182"; //changes after the re-install
-//const userToken = "xoxp-511220587186-512622329046-522366249552-ac278479b7522e60a428cfeee38c8df2";
-const botToken = "xoxb-511220587186-512889535014-Yc1UWyFXkDjzoc5LdJ6XCPuz"; //changes after the re-install
+const store = new Store({ path: 'auth.json' })
 const client_id = "511220587186.511052758372";
 const client_secret = "b1f35600428d73ffdcb625e3e99ec59c";
-const interChannel = "CF9RR28MQ";
-var session = false;
-var counter = 0;
-var formData = {};
+
+
+// Workspace credentials and params
+var appToken;
+var botToken;
+var botUser;
+var teamName;
+var interChannel = ''; //ID of the interruption channel
+
+// Loading params from the storage file to RAM if it exists
+if (store.has('appToken')) {
+    appToken = store.get('appToken');
+    botToken = store.get('botToken');
+    botUser = store.get('botUser');
+    teamName = store.get('teamName');
+    interChannel = store.get('channel_id');
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const port = 3000;
 
 // Test response for the GET request from browser
-app.get('/', (req, res) => res.send('<p>Hello World!</p>' + '<p>Recieved the following "Accept" header: </p><br>' + req.headers.accept));
+app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
 
 // Indication app is started
 app.listen(port, () => console.log(`App listening on port ${port}!`))
 
-function postMessage(text, channel, isReplace = false, response_url, asUser = false) {
+// Posts a message using the following params:
+
+// text(required) - String message to post
+// channel(required) - String ID of a channel to post message to
+// username
+// isReplace - boolean flag indicating if we want new message to replace previous message
+// response_url - String unique URL that is being used if our message is sent in response to another
+// asUser - boolean flag, currently used to refer to a person submitted the message.
+function postMessage(text, channel, isReplace = false, response_url, asUser = false, user) {
     var token = botToken;
+
+    if (asUser) {
+        text = text + '\n_Submitted by <@' + user + '>_';
+    }
+
     var body = {
         "channel": channel,
         "text": text
     }
 
-    if(isReplace) {
+    if (isReplace) {
         body.delete_original = true;
-    }
-    if(asUser) {
-        body.as_user = false;
-        token = userToken;
     }
 
     var url;
@@ -57,55 +82,15 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
     });
 };
 
-function askCause(chnl) {
-    request.post('https://slack.com/api/chat.postMessage', {
-        headers: {
-            'Content-type': 'application/json',
-            'Authorization': 'Bearer ' + botToken
-        },
-        json: {
-            "channel": chnl,
-            "text": "Cause of the interruption",
-            "attachments": [
-                {
-                    "text": "Cause",
-                    "fallback": "Seems you are using an interface that does not support Slack attachments or interactive messages",
-                    "color": "#3AA3E3",
-                    "callback_id": "cause",
-                    "actions": [
-                        {
-                            "name": "causes",
-                            "text": "Choose cause",
-                            "type": "select",
-                            "options": [
-                                {
-                                    "text": "Issue with a vendor",
-                                    "value": "Issue with a vendor"
-                                },
-                                {
-                                    "text": "Issue with a business partner",
-                                    "value": "Issue with a business partner"
-                                },
-                                {
-                                    "text": "Internal issue",
-                                    "value": "Internal issue"
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        }
-    }, (err, res, body) => {
-    })
-};
-
+// Posts confirmation message so user can preview the resulting message
 function confirmPublish(form, chnl) {
-    var text = "<!channel> Interruption alert!\n*Start Time*\n" + form.start_time +
-        "\n*Next Update Time*\n" + form.update_time +
-        "\n*Cause*\n" + form.cause +
-        "\n*Impact*\n" + form.impact +
-        "\n*Est. resolution time*\n" + form.resolution_time;
+    var text = "<!here>" +
+        "\n*Start Time:*\n" + form.start_time +
+        "\n*Issue and cause:*\n" + form.issue +
+        "\n*Impact:*\n" + form.impact +
+        "\n*" + form.next_steps + ":*" +
+        "\n" + form.time +
+        "\n*For any further questions please contact Support.*";
 
 
     request.post('https://slack.com/api/chat.postMessage', {
@@ -151,12 +136,8 @@ function confirmPublish(form, chnl) {
     })
 };
 
-// "report" command handler. Opens up the dialog in slack
-app.post('/', (req, res) => {
-    var body = req.body;
-    channel = body.channel_id;
-    var trigger_id = body.trigger_id;
-
+// Opens up the dialog in slack
+function openDialog(trigger_id) {
     request.post('https://slack.com/api/dialog.open', {
         json: {
             'dialog': {
@@ -178,54 +159,37 @@ app.post('/', (req, res) => {
                     //     'placeholder': 'e.g. March 16 2018 15:28 UTC'
                     // },
                     {
-                        'type': 'select',
-                        'label': 'Cause',
-                        'name': 'cause',
-                        'options': [
-                            {
-                                'label': 'Issue with a vendor',
-                                'value': 'vendor'
-                            },
-                            {
-                                'label': 'Issue with a business partner',
-                                'value': 'partner'
-                            },
-                            {
-                                'label': 'Internal system issue',
-                                'value': 'internal'
-                            }
-                        ]
+                        'type': 'textarea',
+                        'label': 'Issue description',
+                        'name': 'issue',
+                        'hint': 'Please specify what happened and what caused it'
                     },
                     {
                         'type': 'textarea',
                         'name': 'impact',
                         'label': 'Impact',
-                        'hint': 'Which features are affected? Is there any data loss? What is the expected experience in the system a compared to the steady state?',
-                        'placeholder': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead'
+                        'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
+                        'placeholder': '• Which features are affected?\n• Is there any data loss?\n• What is the expected experience in the system a compared to the steady state?'
                     },
                     {
                         'type': 'select',
                         'label': 'Next Steps',
-                        'name': 'cause',
+                        'name': 'next_steps',
                         'options': [
                             {
-                                'label': 'Issue with a vendor',
-                                'value': 'vendor'
+                                'label': 'Status update',
+                                'value': 'Next Status Update Time'
                             },
                             {
-                                'label': 'Issue with a business partner',
-                                'value': 'partner'
-                            },
-                            {
-                                'label': 'Internal system issue',
-                                'value': 'internal'
+                                'label': 'Resolution',
+                                'value': 'Expected Resolution Time'
                             }
                         ]
                     },
                     {
                         'type': 'text',
-                        'label': 'Next update time',
-                        'name': 'update_time',
+                        'label': 'Update/Resolution time',
+                        'name': 'time',
                         'placeholder': 'e.g. March 16 2018 15:28 UTC'
                     },
 
@@ -237,12 +201,33 @@ app.post('/', (req, res) => {
             'Content-type': 'application/json',
             'Authorization': 'Bearer ' + appToken
         }
+    }, (error, response) => {
+        if (response.statusCode != 200) {
+            console.log(error);
+        }
     });
-    res.send();
+}
+
+// "report" command handler, checks if channel ID is specified and opens dialog
+app.post('/', (req, res) => {
+    var body = req.body;
+    channel = body.channel_id;
+    var trigger_id = body.trigger_id;
+    if(interChannel != '' && interChannel != null) {
+        res.send();
+        openDialog(trigger_id);
+    }
+    else if ((interChannel == '' || interChannel == null) && (store.get('channel_id') != '' && store.get('channel_id') != null)) {
+        res.send();
+        interChannel = store.get('channel_id');
+        openDialog(trigger_id);
+    }
+    else {
+        res.send("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server");
+    }
 });
 
-
-// TODO: Make a post on the submitter's behalf
+// General endpoint, see comments inside
 app.post('/postReport', (req, res) => {
     var payload = JSON.parse(req.body.payload);
 
@@ -254,108 +239,24 @@ app.post('/postReport', (req, res) => {
         confirmPublish(form, payload.channel.id);
     }
 
-    // processes "cause" multiple choice question
-    else if (payload.callback_id == "cause") {
-        if (counter != 2) {
-            formData.cause = payload.actions[0].selected_options[0].value;
-        }
-        else {
-            formData.cause = payload.actions[0].selected_options[0].value;
-            var text = "*Impact:* Which features are affected? Is there any data loss? What is the expected experience in the system a compared to the steady state?"
-            postMessage(text, payload.channel.id);
-            counter++;
-        }
-    }
-    // processess final interruption message publishing
+    // Processess final interruption message publishing
     else if (payload.callback_id = "publish") {
-        res.send(200);
+        res.send();
         if (payload.actions[0].value == "yes") {
-            postMessage(payload.original_message.attachments[0].text, interChannel/*, false, false, false*/);
+            var user = payload.user.id;
+            postMessage(payload.original_message.attachments[0].text, interChannel, false, false, true, user);
             postMessage("Thanks for sumitting service interruption details!", payload.channel.id, true, payload.response_url);
         }
         else {
-            postMessage("Message discarded. To start over just send me a message!", payload.channel.id, true, payload.response_url);
+            postMessage("Message discarded. To start over use /report command!", payload.channel.id, true, payload.response_url);
         }
     }
 
 });
 
-// Bot messages handler
-app.post('/bot', (req, res) => {
-
-    // verification
-    var challenge = req.body.challenge;
-    if (challenge) {
-        res.send(challenge);
-    }
-
-    let payload = req.body;
-    let chnl = payload.event.channel;
-    res.sendStatus(200);
-
-    // usage hint (if app mentioned outisde DM)
-    if (payload.event.type == "app_mention") {
-        var text = "Hey there! Please send me a direct message so I can help you to format a service interruption message for the relevant slack channel :)";
-        postMessage(text, chnl);
-    }
-
-    // break process
-    if (payload.event.type == "message" && payload.event.text == "stop" && payload.event.user) {
-        session = false;
-        counter = 0;
-        postMessage("We are stopped. Send me a message if you want to try again", chnl, true);
-    }
-
-    // init dialog
-    else if (payload.event.type == "message" && !session && payload.event.user) {
-        session = true;
-        var text = "Start Time (e.g. March 16 2018 15:28 UTC)"
-        postMessage(text, chnl);
-        counter++;
-    }
-
-    // get answers for the future form
-    else if (payload.event.type == "message" && session && payload.event.user) {
-        switch (counter) {
-            case 1:
-                formData.start_time = payload.event.text;
-                // var text = "Cause"
-                // postMessage(text, chnl);
-                askCause(chnl);
-                counter++;
-                break;
-            case 2: // being handled in /postReport endpoint
-                // formData.cause = payload.event.text;
-                // var text = "*Impact:* Which features are affected? Is there any data loss? What is the expected experience in the system a compared to the steady state?"
-                // postMessage(text, chnl);
-                // counter++;
-                break;
-            case 3:
-                formData.impact = payload.event.text;
-                var text = "Next update time (e.g. March 16 2018 15:28 UTC)"
-                postMessage(text, chnl);
-                counter++;
-                break;
-            case 4:
-                formData.update_time = payload.event.text;
-                var text = "Est. resolution time (e.g. March 16 2018 15:28 UTC). If not known - mention that as well"
-                postMessage(text, chnl);
-                counter++;
-                break;
-            case 5:
-                formData.resolution_time = payload.event.text;
-                counter = 0;
-                session = false;
-                confirmPublish(formData, chnl);
-                break;
-        }
-    }
-
-});
-
-//OAuth
-app.get('/auth', (req, res) => {
-    console.log(req);
+// OAuth and initial setup
+app.get('/auth', (req, resp) => {
+    //console.log(req);
     var code = req.query.code;
     var url = "https://slack.com/api/oauth.access";
     var body = {
@@ -371,8 +272,27 @@ app.get('/auth', (req, res) => {
     }, (err, res, body) => {
         console.log(res);
         console.log(err);
+        var response = JSON.parse(res.body);
+        appToken = response.access_token;
+        store.set('appToken', appToken);
+        botToken = response.bot.bot_access_token;
+        store.set('botToken', botToken);
+        botUser = response.bot.bot_user_id;
+        store.set('botUser', botUser);
+        teamName = response.team_name;
+        store.set('teamName', teamName);
+        user = response.user_id;
+        store.set('admin_user', user);
+        store.set('channel_id', '');
+
+        // Redirect to slack
+        resp.redirect('https://' + teamName + '.slack.com/messages/' + botUser);
+
+        // Get interruption channel ID
+        postMessage("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server", user);
     });
-
-    res.send();
-
 });
+
+app.post('/push-test', (req, res) => {
+    res.send();
+})
