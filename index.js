@@ -1,15 +1,27 @@
 // This app is only tested and designed to work with a single workspace yet
 // TODO: Make a post on the submitter's behalf
-
 const express = require('express');
 const request = require('request');
-const Store = require('data-store');
+const awsServerlessExpress = require('aws-serverless-express');
 
 const app = express();
-const store = new Store({ path: 'auth.json' })
-const client_id = "511220587186.511052758372";
-const client_secret = "b1f35600428d73ffdcb625e3e99ec59c";
+const server = awsServerlessExpress.createServer(app);
 
+exports.handler = (event, context) => {
+    console.log("EVENT: " + JSON.stringify(event));
+    awsServerlessExpress.proxy(server, event, context);
+}
+//TODO: Think of other object type instead of Map
+const store = new Map(Object.entries({
+    client_id: process.env.CLIENT_ID,
+    client_secret: process.env.CLIENT_SECRET,
+    appToken: process.env.APP_TOKEN,
+    botToken: process.env.BOT_TOKEN,
+    botUser: process.env.BOT_USER,
+    teamName: process.env.TEAM_NAME,
+    admin_user: process.env.ADMIN_USER,
+    channel_id: process.env.CHANNEL_ID
+}));
 
 // Workspace credentials and params
 var appToken;
@@ -33,6 +45,7 @@ const port = 3000;
 
 // Test response for the GET request from browser
 app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
+app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
 
 // Indication app is started
 app.listen(port, () => console.log(`App listening on port ${port}!`))
@@ -69,16 +82,12 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
         url = "https://slack.com/api/chat.postMessage";
     }
 
-
-    request.post(url, {
+    return request.post(url, {
         headers: {
             'Content-type': 'application/json',
             'Authorization': 'Bearer ' + token
         },
         json: body
-    }, (err, res, body) => {
-        console.log(res);
-        console.log(err);
     });
 };
 
@@ -93,7 +102,7 @@ function confirmPublish(form, chnl) {
         "\n*For any further questions please contact Support.*";
 
 
-    request.post('https://slack.com/api/chat.postMessage', {
+    return request.post('https://slack.com/api/chat.postMessage', {
         headers: {
             'Content-type': 'application/json',
             'Authorization': 'Bearer ' + botToken
@@ -132,13 +141,12 @@ function confirmPublish(form, chnl) {
                 }
             ]
         }
-    }, (err, res, body) => {
-    })
+    });
 };
 
 // Opens up the dialog in slack
 function openDialog(trigger_id) {
-    request.post('https://slack.com/api/dialog.open', {
+    return request.post('https://slack.com/api/dialog.open', {
         json: {
             'dialog': {
                 'callback_id': 'dialog-open',
@@ -201,11 +209,15 @@ function openDialog(trigger_id) {
             'Content-type': 'application/json',
             'Authorization': 'Bearer ' + appToken
         }
-    }, (error, response) => {
-        if (response.statusCode != 200) {
-            console.log(error);
-        }
     });
+    //, (error, response) => {
+    //     console.log("Trigger ID: " + trigger_id);
+    //     console.log("APP TOKEN: " + appToken);
+    //     console.log(response.body);
+    //     if (response.statusCode != 200) {
+    //         console.log(error);
+    //     }
+    // });
 }
 
 // "report" command handler, checks if channel ID is specified and opens dialog
@@ -214,13 +226,13 @@ app.post('/', (req, res) => {
     channel = body.channel_id;
     var trigger_id = body.trigger_id;
     if(interChannel != '' && interChannel != null) {
-        res.send();
-        openDialog(trigger_id);
+        console.log("1")
+        setRequestCallbacks(res, openDialog(trigger_id));
     }
     else if ((interChannel == '' || interChannel == null) && (store.get('channel_id') != '' && store.get('channel_id') != null)) {
-        res.send();
+        console.log("2")
         interChannel = store.get('channel_id');
-        openDialog(trigger_id);
+        setRequestCallbacks(res, openDialog(trigger_id));
     }
     else {
         res.send("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server");
@@ -233,25 +245,24 @@ app.post('/postReport', (req, res) => {
 
     // Dialog data processor. Retrieves data from the dialog window and posts to the relevant channel
     if (payload.callback_id == "dialog-open") {
-        res.send();
+        // res.send();
         var form = payload.submission;
         console.log(form);
-        confirmPublish(form, payload.channel.id);
+        setRequestCallbacks(res, confirmPublish(form, payload.user.id));
     }
 
     // Processess final interruption message publishing
     else if (payload.callback_id = "publish") {
-        res.send();
+        // res.send();
         if (payload.actions[0].value == "yes") {
             var user = payload.user.id;
-            postMessage(payload.original_message.attachments[0].text, interChannel, false, false, true, user);
-            postMessage("Thanks for sumitting service interruption details!", payload.channel.id, true, payload.response_url);
+            postMessage(payload.original_message.attachments[0].text, interChannel, false, false, true, user)
+            .on('response', () => setRequestCallbacks(res, postMessage("Thanks for sumitting service interruption details!", payload.channel.id, true, payload.response_url)));
         }
         else {
-            postMessage("Message discarded. To start over use /report command!", payload.channel.id, true, payload.response_url);
+            setRequestCallbacks(res, postMessage("Message discarded. To start over use /service-interruption-report command!", payload.channel.id, true, payload.response_url));
         }
     }
-
 });
 
 // OAuth and initial setup
@@ -286,13 +297,22 @@ app.get('/auth', (req, resp) => {
         store.set('channel_id', '');
 
         // Redirect to slack
-        resp.redirect('https://' + teamName + '.slack.com/messages/' + botUser);
+        //resp.redirect('https://' + teamName + '.slack.com/messages/' + botUser);
 
         // Get interruption channel ID
         postMessage("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server", user);
     });
 });
 
-app.post('/push-test', (req, res) => {
-    res.send();
-})
+function setRequestCallbacks(res, req) {
+    req
+    .on('error', (error) => {
+        console.error(error);
+        res.send(500, 'Opps, something went wrong :O');
+    })
+    .on('response', (response) => {
+        console.log('SUCCESS');
+        res.send();
+    });
+    
+}
