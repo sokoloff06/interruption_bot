@@ -13,14 +13,14 @@ exports.handler = (event, context) => {
 }
 //TODO: Think of other object type instead of Map
 const store = new Map(Object.entries({
-    client_id: process.env.CLIENT_ID,
-    client_secret: process.env.CLIENT_SECRET,
-    appToken: process.env.APP_TOKEN,
-    botToken: process.env.BOT_TOKEN,
+    client_id: "511220587186.609238650165",
+    client_secret: "6a4c69f01bf04a36727043452208b80f",
+    appToken: "xoxp-511220587186-512622329046-609240672597-0a12290f43a86d09229edf584225b351",
+    botToken: "xoxb-511220587186-610720214500-2Wot3u1en8ekbX4BKrvCymcG",
     botUser: process.env.BOT_USER,
     teamName: process.env.TEAM_NAME,
     admin_user: process.env.ADMIN_USER,
-    channel_id: process.env.CHANNEL_ID
+    channel_id: "CFRSLK2NQ"
 }));
 
 // Workspace credentials and params
@@ -300,7 +300,7 @@ app.get('/auth', (req, resp) => {
         //resp.redirect('https://' + teamName + '.slack.com/messages/' + botUser);
 
         // Get interruption channel ID
-        postMessage("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server", user);
+        postMessage("Please, add ID of the service interruption channel (as channel_id) to the environment variables and restart the lamdba", user);
     });
 });
 
