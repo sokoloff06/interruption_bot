@@ -95,10 +95,11 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
 // Posts confirmation message so user can preview the resulting message
 function confirmPublish(form, chnl) {
     var today = new Date();
-    var now = today.toLocaleString("default", {
+    var now = today.toLocaleString("en-us", {
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'Asia/Jerusalem'
     });
     var text = "_" + now + "_" + "\n" +
         "<!here>" +
@@ -155,7 +156,7 @@ function confirmPublish(form, chnl) {
 // Opens up the dialog in slack
 function openDialog(trigger_id) {
     var today = new Date();
-    var time = today.toLocaleString("default", {
+    var time = today.toLocaleString("en-us", {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -163,7 +164,8 @@ function openDialog(trigger_id) {
         minute: "2-digit",
         second: "2-digit",
         hour12: false,
-        timeZoneName: "short"
+        timeZoneName: "short",
+        timeZone: "Asia/Jerusalem"
     });
     return request.post('https://slack.com/api/dialog.open', {
         json: {
