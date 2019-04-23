@@ -22,7 +22,8 @@ const store = new Map(Object.entries({
     admin_user: process.env.ADMIN_USER,
     channel_id: "CFRSLK2NQ"
 }));
-
+const update_string = "Next Status Update Time";
+const resolution_string = "Expected Resolution Time:";
 // Workspace credentials and params
 var appToken;
 var botToken;
@@ -93,7 +94,14 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
 
 // Posts confirmation message so user can preview the resulting message
 function confirmPublish(form, chnl) {
-    var text = "<!here>" +
+    var today = new Date();
+    var now = today.toLocaleString("default", {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    var text = "_" + now + "_" + "\n" +
+        "<!here>" +
         "\n*Start Time:*\n" + form.start_time +
         "\n*Issue and cause:*\n" + form.issue +
         "\n*Impact:*\n" + form.impact +
@@ -146,6 +154,17 @@ function confirmPublish(form, chnl) {
 
 // Opens up the dialog in slack
 function openDialog(trigger_id) {
+    var today = new Date();
+    var time = today.toLocaleString("default", {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZoneName: "short"
+    });
     return request.post('https://slack.com/api/dialog.open', {
         json: {
             'dialog': {
@@ -158,7 +177,7 @@ function openDialog(trigger_id) {
                         'type': 'text',
                         'label': 'Start Time',
                         'name': 'start_time',
-                        'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                        'value': time
                     },
                     // {
                     //     'type': 'text',
@@ -175,7 +194,7 @@ function openDialog(trigger_id) {
                     {
                         'type': 'textarea',
                         'name': 'impact',
-                        'label': 'Impact',
+                        'label': 'Impact on customers',
                         'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
                         'placeholder': '• Which features are affected?\n• Is there any data loss?\n• What is the expected experience in the system a compared to the steady state?'
                     },
@@ -186,11 +205,11 @@ function openDialog(trigger_id) {
                         'options': [
                             {
                                 'label': 'Status update',
-                                'value': 'Next Status Update Time'
+                                'value': update_string
                             },
                             {
                                 'label': 'Resolution',
-                                'value': 'Expected Resolution Time'
+                                'value': resolution_string
                             }
                         ]
                     },
@@ -198,7 +217,7 @@ function openDialog(trigger_id) {
                         'type': 'text',
                         'label': 'Update/Resolution time',
                         'name': 'time',
-                        'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                        'placeholder': "e.g. " + time
                     },
 
                 ]
@@ -225,7 +244,7 @@ app.post('/', (req, res) => {
     var body = req.body;
     channel = body.channel_id;
     var trigger_id = body.trigger_id;
-    if(interChannel != '' && interChannel != null) {
+    if (interChannel != '' && interChannel != null) {
         console.log("1")
         setRequestCallbacks(res, openDialog(trigger_id));
     }
@@ -257,7 +276,7 @@ app.post('/postReport', (req, res) => {
         if (payload.actions[0].value == "yes") {
             var user = payload.user.id;
             postMessage(payload.original_message.attachments[0].text, interChannel, false, false, true, user)
-            .on('response', () => setRequestCallbacks(res, postMessage("Thanks for sumitting service interruption details!", payload.channel.id, true, payload.response_url)));
+                .on('response', () => setRequestCallbacks(res, postMessage("Thanks for sumitting service interruption details!", payload.channel.id, true, payload.response_url)));
         }
         else {
             setRequestCallbacks(res, postMessage("Message discarded. To start over use /service-interruption-report command!", payload.channel.id, true, payload.response_url));
@@ -306,13 +325,13 @@ app.get('/auth', (req, resp) => {
 
 function setRequestCallbacks(res, req) {
     req
-    .on('error', (error) => {
-        console.error(error);
-        res.send(500, 'Opps, something went wrong :O');
-    })
-    .on('response', (response) => {
-        console.log('SUCCESS');
-        res.send();
-    });
-    
+        .on('error', (error) => {
+            console.error(error);
+            res.send(500, 'Opps, something went wrong :O');
+        })
+        .on('response', (response) => {
+            console.log('SUCCESS');
+            res.send();
+        });
+
 }
