@@ -24,7 +24,7 @@ const store = new Map(Object.entries({
 }));
 
 const update_string = "Next Status Update Time";
-const resolution_string = "Expected Resolution Time:";
+const resolution_string = "Expected Resolution Time";
 // Workspace credentials and params
 var appToken;
 var botToken;
