@@ -314,5 +314,4 @@ function setRequestCallbacks(res, req) {
         console.log('SUCCESS');
         res.send();
     });
-    
 }
