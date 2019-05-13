@@ -93,7 +93,15 @@ function postMessage(text, channel, isReplace = false, response_url, asUser = fa
 
 // Posts confirmation message so user can preview the resulting message
 function confirmPublish(form, chnl) {
-    var text = "<!here>" +
+    var today = new Date();
+    var now = today.toLocaleString("en-us", {		
+        year: 'numeric',		
+        month: 'long',		
+        day: 'numeric',		
+        timeZone: "Asia/Jerusalem"		
+    });		
+    var text = "_" + now + "_" + "\n" +		
+        "<!here>" +		
         "\n*Start Time:*\n" + form.start_time +
         "\n*Issue and cause:*\n" + form.issue +
         "\n*Impact:*\n" + form.impact +
@@ -146,6 +154,18 @@ function confirmPublish(form, chnl) {
 
 // Opens up the dialog in slack
 function openDialog(trigger_id) {
+        var today = new Date();		
+    var time = today.toLocaleString("en-us", {		
+        year: 'numeric',		
+        month: 'long',		
+        day: 'numeric',		
+        hour: "2-digit",		
+        minute: "2-digit",		
+        second: "2-digit",		
+        hour12: false,		
+        timeZone: "Asia/Jerusalem",		
+        timeZoneName: "short"		
+    });
     return request.post('https://slack.com/api/dialog.open', {
         json: {
             'dialog': {
@@ -158,7 +178,7 @@ function openDialog(trigger_id) {
                         'type': 'text',
                         'label': 'Start Time',
                         'name': 'start_time',
-                        'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                        'value': time
                     },
                     // {
                     //     'type': 'text',
@@ -175,7 +195,7 @@ function openDialog(trigger_id) {
                     {
                         'type': 'textarea',
                         'name': 'impact',
-                        'label': 'Impact',
+                        'label': 'Impact on customers',
                         'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
                         'placeholder': '• Which features are affected?\n• Is there any data loss?\n• What is the expected experience in the system a compared to the steady state?'
                     },
@@ -198,7 +218,7 @@ function openDialog(trigger_id) {
                         'type': 'text',
                         'label': 'Update/Resolution time',
                         'name': 'time',
-                        'placeholder': 'e.g. March 16 2018 15:28 UTC'
+                        'placeholder': 'e.g. ' + time
                     },
 
                 ]
@@ -235,7 +255,7 @@ app.post('/', (req, res) => {
         setRequestCallbacks(res, openDialog(trigger_id));
     }
     else {
-        res.send("Please, add ID of the service interruption channel (as channel_id) to the auth.json file and restart the app on the server");
+        res.send("Please, add ID of the service interruption channel (as channel_id) to the environment variables and restart the lamdba");
     }
 });
 
