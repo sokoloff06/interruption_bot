@@ -4,10 +4,13 @@
   "description": "Helper app providing with a form to submit information about service interruptions into the relevant slack channel",
   "main": "index.js",
   "dependencies": {
+    "@slack/web-api": "~5.2.1",
+    "aws-serverless-express": "~3.3.6",
     "body-parser": "^1.18.3",
     "data-store": "^3.1.0",
-    "express": "^4.16.4",
-    "request": "^2.88.0"
+    "dotenv": "~8.2.0",
+    "express": "~4.17.1",
+    "request": "~2.88.0"
   },
   "devDependencies": {},
   "scripts": {
