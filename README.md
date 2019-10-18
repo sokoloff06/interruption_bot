@@ -12,7 +12,12 @@ Service Interruption is a Slack App that helps R&D to submit an internal service
 
 * When deploying, make sure to set up environment variables for:
 
-CHANNEL_ID - ID of the service-interruption channel
-BOT_TOKEN
-APP_TOKEN
-CLIENT_SECRET
+CHANNEL_ID - ID of the service-interruption channel  
+BOT_TOKEN  
+APP_TOKEN  
+CLIENT_SECRET  
+
+* On lambda, please comment out following lines (as environment variables are set up in labda UI):
+
+`const dotenv = require('dotenv');`
+`dotenv.config()`
