@@ -17,7 +17,6 @@ exports.handler = (event, context) => {
     console.log('EVENT: ' + JSON.stringify(event));
     awsServerlessExpress.proxy(server, event, context);
 }
-
 dotenv.config()
 //TODO: Think of other object type instead of Map
 const store = new Map(Object.entries({
@@ -55,9 +54,9 @@ const accessory = {
 
 // Workspace credentials and params
 var app_token;
-var bot_token;
-var bot_user;
-var team_name;
+var bot_token
+var bot_user
+var team_name
 var interChannel; //ID of the interruption channel
 
 // Loading params from the storage file to RAM if it exists
@@ -142,7 +141,7 @@ function openDialog(trigger_id) {
 // 'report' command handler, checks if channel ID is specified and opens dialog
 app.post('/', (req, res) => {
     var body = req.body;
-    channel = body.channel_id;
+    var channel = body.channel_id;
     var trigger_id = body.trigger_id;
     if (interChannel != '' && interChannel != null) {
         console.log('1')
@@ -174,20 +173,27 @@ app.post('/postReport', (req, res) => {
             slack.chat.postMessage(
                 {
                     'text': payload.submission.update_details +
-                        '\nUpdated by <@' + payload.user.id + '>',
+                        '\n_Updated by <@' + payload.user.id + '>_',
                     'channel': payload.channel.id,
                     'thread_ts': state.ts
                 }
             )
                 .then(() => {
                     console.log("SUCESS")
-                    res.send();
                     var new_blocks = state.blocks
                     new_blocks[1].elements[1].text = '*Updated:* ' + getCurrentTimeFormatted();
                     slack.chat.update({
                         'channel': payload.channel.id,
                         'ts': state.ts,
                         'blocks': new_blocks
+                    })
+                    .then((result) => {
+                        console.log('SUCEESS\nResult: ' + result);
+                        res.send()
+                    })
+                    .catch((error) => {
+                        console.log('FAIL\nResult: ' + error);
+                        res.send(500)  
                     })
                 })
         }
@@ -210,16 +216,23 @@ app.post('/postReport', (req, res) => {
                     var finalBlocks = payload.original_message.blocks;
                     finalBlocks[0].accessory = accessory;
                     console.log('SUCCESS\nResult: ' + result);
-                    res.send();
                     slack.chat.postMessage({
                         'channel': interChannel,
                         'text': 'There is a new interruption!',
                         'blocks': finalBlocks
                     })
+                    .then((result) => {
+                        console.log('SUCEESS\nResult: ' + result);
+                        res.send()
+                    })
+                    .catch((error) => {
+                        console.log('FAIL\nReason: ' + error);
+                        res.sendStatus(500);
+                    })
                 })
                 .on('error', (error) => {
                     console.log('FAIL\nReason: ' + error);
-                    res.send();
+                    res.sendStatus(500);
                 })
         }
         // User cancels publishing the message
@@ -238,7 +251,7 @@ app.post('/postReport', (req, res) => {
                     res.send();
                 })
                 .on('error', (error) => {
-                    console.log('FAIL\nReason: ' + reason)
+                    console.log('FAIL\nReason: ' + error)
                     res.send(500);
                 })
         }
@@ -260,25 +273,30 @@ app.post('/postReport', (req, res) => {
                     'blocks': blocks
                 }
             })
-                .on('response', (response) => {
-                    console.log('SUCCESS');
-                    res.send();
+                .on('response', (result) => {
+                    console.log('SUCCESS\nResult: ' + result);
                     slack.chat.postMessage(
                         {
-                            'text': 'Resolved by <@' + payload.user.id + '>',
+                            'text': '_Resolved by <@' + payload.user.id + '>_',
                             'channel': payload.channel.id,
                             'thread_ts': payload.message.ts
                         }
-                    )
+                    ).then((result) => {
+                        console.log('SUCCESS\nResult: ' + result);
+                        res.send();
+                    })
+                    .catch((error) => {
+                        console.log('FAIL\nReason: ' + error);
+                        res.sendStatus(500);
+                    })
                 })
                 .on('error', (error) => {
                     console.error(error);
-                    res.send(500, 'Opps, something went wrong :O');
+                    res.send(500);
                 })
         }
         // Updating issue status
         else if (payload.actions[0].selected_option.text.text == 'Update') {
-            res.send();
             slack.dialog.open({
                 'trigger_id': payload.trigger_id,
                 'dialog': {
@@ -294,6 +312,14 @@ app.post('/postReport', (req, res) => {
                         }
                     ]
                 }
+            })
+            .then((result) => {
+                console.log('SUCCESS\nResult: ' + result);
+                res.send();
+            })
+            .catch((error) => {
+                console.log('FAIL\nReason: ' + error);
+                res.sendStatus(500);
             })
         }
     }
@@ -367,7 +393,7 @@ function postPreview(res, user_id, form) {
             ]
         }
     ];
-    
+
     slack.chat.postMessage({
         'channel': user_id,
         'text': 'Here is how your message will look like',
