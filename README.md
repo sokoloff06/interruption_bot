@@ -9,15 +9,10 @@ Service Interruption is a Slack App that helps R&D to submit an internal service
 * Put relevant *host URL* under the slack application in the following sections (see screenshots attached)
     * Interactive Components -> Request URL
     * Slash Commands -> /report -> Request URL
-    * OAuth & Permissions -> Redirect URLS
 
-* When deploying locally, make sure to fill in the following constants in index.js:
+* When deploying, make sure to set up environment variables for:
 
-    client_id: "",
-    client_secret: "",
-    appToken: "",
-    botToken: "",
-    botUser: "",
-    channel_id: ""
-
-* When deploying to lambda, provide values above as environment variables
+CHANNEL_ID - ID of the service-interruption channel
+BOT_TOKEN
+APP_TOKEN
+CLIENT_SECRET
