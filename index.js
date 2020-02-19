@@ -5,19 +5,17 @@ const request = require('request');
 const dotenv = require('dotenv');
 const awsServerlessExpress = require('aws-serverless-express');
 const { WebClient } = require('@slack/web-api');
-
-
 const app = express();
 const port = 3000;
-// Indication app is started
-app.listen(port, () => console.log(`App listening on port ${port}!`))
-
+app.listen(port, () => console.log(`App listening on port ${port}!`));
 const server = awsServerlessExpress.createServer(app);
 exports.handler = (event, context) => {
     console.log('EVENT: ' + JSON.stringify(event));
     awsServerlessExpress.proxy(server, event, context);
-}
-dotenv.config()
+};
+var envResult = dotenv.config();
+console.log(envResult);
+
 //TODO: Think of other object type instead of Map
 const store = new Map(Object.entries({
     client_id: process.env.CLIENT_ID,
@@ -30,10 +28,10 @@ const store = new Map(Object.entries({
     channel_id: process.env.CHANNEL_ID,
     request_url: process.env.REQUEST_URL
 }));
-
 const slack = new WebClient(store.get('bot_token'));
 
-const accessory = {
+// JSONs
+const accessoryResolve = {
     'type': 'overflow',
     'options': [
         {
@@ -50,13 +48,139 @@ const accessory = {
         }
     ],
     'action_id': 'overflow'
+};
+const accessoryUnresolve = {
+    'type': 'overflow',
+    'options': [
+        {
+            'text': {
+                'type': 'plain_text',
+                'text': 'Unresolve'
+            }
+        }
+    ],
+    'action_id': 'overflow'
+};
+function getDialogJson(trigger_id) {
+    var now = getCurrentTimeFormatted();
+    return {
+        'dialog': {
+            'callback_id': 'issue_report',
+            'title': 'Report interruption',
+            'submit_label': 'Report',
+            'elements': [
+                {
+                    'type': 'text',
+                    'label': 'Start Time',
+                    'name': 'start_time',
+                    'value': now
+                },
+                {
+                    'type': 'textarea',
+                    'label': 'Issue description',
+                    'name': 'issue',
+                    'hint': 'Please specify what happened and what caused it'
+                },
+                {
+                    'type': 'textarea',
+                    'name': 'impact',
+                    'label': 'Impact on customers',
+                    'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
+                    'placeholder': '• Which features are affected?\n• Is there any data loss?\n• What is the expected experience in the system a compared to the steady state?'
+                },
+                {
+                    'type': 'select',
+                    'label': 'Next Steps',
+                    'name': 'next_steps',
+                    'options': [
+                        {
+                            'label': 'Status update',
+                            'value': 'Next Status Update Time'
+                        },
+                        {
+                            'label': 'Resolution',
+                            'value': 'Expected Resolution Time'
+                        }
+                    ]
+                },
+                {
+                    'type': 'text',
+                    'label': 'Update/Resolution time',
+                    'name': 'time',
+                    'placeholder': 'e.g. ' + now
+                },
+
+            ]
+        },
+        'trigger_id': trigger_id
+    };
+}
+function getInitialBlocks(form, user_id) {
+    var now = getCurrentTimeFormatted();
+    var json = [
+        {
+            'type': 'section',
+            'text':
+                {
+                    "type": "mrkdwn",
+                    "text": "Here is how your message will look like"
+                }
+        },
+        {
+            'type': 'section',
+            'fields': [
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Issue and cause*\n' + form.issue
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Impact*\n' + form.impact
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Start Time*\n' + form.start_time
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Expected resolution/update time*\n' + form.time
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Status*\n:red_circle: - Ongoing'
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Updates log:*\n'
+                }
+            ]
+        },
+        {
+            'type': 'context',
+            'elements': [
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Published by:* ' + '<@' + user_id + '>'
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '*Last updated:* ' + now
+                },
+                {
+                    'type': 'mrkdwn',
+                    'text': '<!here>'
+                }
+            ]
+        }
+    ];
+    return json;
 }
 
 // Workspace credentials and params
 var app_token;
-var bot_token
-var bot_user
-var team_name
+var bot_token;
+var bot_user;
+var team_name;
 var interChannel; //ID of the interruption channel
 
 // Loading params from the storage file to RAM if it exists
@@ -79,58 +203,7 @@ app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>
 function openDialog(trigger_id) {
     var now = getCurrentTimeFormatted();
     return request.post('https://slack.com/api/dialog.open', {
-        json: {
-            'dialog': {
-                'callback_id': 'issue_report',
-                'title': 'Report interruption',
-                'submit_label': 'Report',
-                'state': 'Limo',
-                'elements': [
-                    {
-                        'type': 'text',
-                        'label': 'Start Time',
-                        'name': 'start_time',
-                        'value': now
-                    },
-                    {
-                        'type': 'textarea',
-                        'label': 'Issue description',
-                        'name': 'issue',
-                        'hint': 'Please specify what happened and what caused it'
-                    },
-                    {
-                        'type': 'textarea',
-                        'name': 'impact',
-                        'label': 'Impact on customers',
-                        'hint': 'Please write here whatever is known and be as detailed as possible. Avoid using R&D internal terminology, use feature names instead',
-                        'placeholder': '• Which features are affected?\n• Is there any data loss?\n• What is the expected experience in the system a compared to the steady state?'
-                    },
-                    {
-                        'type': 'select',
-                        'label': 'Next Steps',
-                        'name': 'next_steps',
-                        'options': [
-                            {
-                                'label': 'Status update',
-                                'value': 'Next Status Update Time'
-                            },
-                            {
-                                'label': 'Resolution',
-                                'value': 'Expected Resolution Time'
-                            }
-                        ]
-                    },
-                    {
-                        'type': 'text',
-                        'label': 'Update/Resolution time',
-                        'name': 'time',
-                        'placeholder': 'e.g. ' + now
-                    },
-
-                ]
-            },
-            'trigger_id': trigger_id
-        },
+        json: getDialogJson(trigger_id),
         headers: {
             'Content-type': 'application/json',
             'Authorization': 'Bearer ' + app_token
@@ -143,13 +216,8 @@ app.post('/', (req, res) => {
     var body = req.body;
     var channel = body.channel_id;
     var trigger_id = body.trigger_id;
-    if (interChannel != '' && interChannel != null) {
-        console.log('1')
-        sendAndAknowledge(res, openDialog(trigger_id));
-    }
-    else if ((interChannel == '' || interChannel == null) && (store.get('channel_id') != '' && store.get('channel_id') != null)) {
-        console.log('2')
-        interChannel = store.get('channel_id');
+    if (interChannel !== '' && interChannel != null) {
+        console.log('1');
         sendAndAknowledge(res, openDialog(trigger_id));
     }
     else {
@@ -160,6 +228,7 @@ app.post('/', (req, res) => {
 // General endpoint, see comments inside
 app.post('/postReport', (req, res) => {
     var payload = JSON.parse(req.body.payload);
+    // Responding to dialogs submissions
     if (payload.type == 'dialog_submission') {
         // Issue report dialog processor
         if (payload.callback_id == 'issue_report') {
@@ -169,36 +238,45 @@ app.post('/postReport', (req, res) => {
         }
         // Issue update dialog processor
         else if (payload.callback_id == 'issue_update') {
-            var state = JSON.parse(payload.state);
-            slack.chat.postMessage(
-                {
-                    'text': payload.submission.update_details +
-                        '\n_Updated by <@' + payload.user.id + '>_',
-                    'channel': payload.channel.id,
-                    'thread_ts': state.ts
+            var originalMessageFromState = JSON.parse(payload.state);
+            var blocks = originalMessageFromState.blocks;
+            var now = getCurrentTimeFormatted();
+            var updated = false;
+            for (var i = 0; i < blocks.length; i++){
+                let  block = blocks[i];
+                if (block.type === "section"){
+                    for (var j = 0; j < block.fields.length; j++){
+                        let field = block.fields[j];
+                        if(field.text.includes("Updates log")) {
+                            field.text += now + ": " + payload.submission.update_details + " _by <@" + payload.user.id + ">_\n";
+                            updated = true;
+                            break;
+                        }
+                    }
+                    break;
                 }
-            )
-                .then(() => {
-                    console.log("SUCESS")
-                    var new_blocks = state.blocks
-                    new_blocks[1].elements[1].text = '*Updated:* ' + getCurrentTimeFormatted();
-                    slack.chat.update({
-                        'channel': payload.channel.id,
-                        'ts': state.ts,
-                        'blocks': new_blocks
-                    })
-                    .then((result) => {
-                        console.log('SUCEESS\nResult: ' + result);
-                        res.send()
-                    })
-                    .catch((error) => {
-                        console.log('FAIL\nResult: ' + error);
-                        res.send(500)  
-                    })
+            }
+            if  (!updated) {
+                res.status(500).send("Cannot update message message");
+            } else {
+                slack.chat.update({
+                    'text': 'Interruption message updated!',
+                    'channel': payload.channel.id,
+                    'ts': originalMessageFromState.ts,
+                    'blocks': blocks
                 })
+                .then((result) => {
+                    console.log('SUCEESS\nResult: ' + result);
+                    res.send()
+                })
+                .catch((error) => {
+                    console.log('FAIL\nReason: ' + error);
+                    res.sendStatus(500);
+                });
+            }
         }
     }
-    // Processess final interruption message publishing
+    // Processes final interruption message publishing
     else if (payload.type == 'interactive_message') {
         // User decides to publish
         if (payload.actions[0].value == 'yes') {
@@ -214,7 +292,7 @@ app.post('/postReport', (req, res) => {
                 .on('response', (result) => {
                     payload.original_message.blocks.shift();
                     var finalBlocks = payload.original_message.blocks;
-                    finalBlocks[0].accessory = accessory;
+                    finalBlocks[0].accessory = accessoryResolve;
                     console.log('SUCCESS\nResult: ' + result);
                     slack.chat.postMessage({
                         'channel': interChannel,
@@ -251,12 +329,12 @@ app.post('/postReport', (req, res) => {
                     res.send();
                 })
                 .on('error', (error) => {
-                    console.log('FAIL\nReason: ' + error)
+                    console.log('FAIL\nReason: ' + error);
                     res.send(500);
                 })
         }
     }
-
+    // Responding to interactive button click
     else if (payload.type == 'block_actions') {
         // Resolving the issue
         if (payload.actions[0].selected_option.text.text == 'Resolve') {
@@ -295,7 +373,7 @@ app.post('/postReport', (req, res) => {
                     res.send(500);
                 })
         }
-        // Updating issue status
+        // Opens  dialog to submit an update
         else if (payload.actions[0].selected_option.text.text == 'Update') {
             slack.dialog.open({
                 'trigger_id': payload.trigger_id,
@@ -303,6 +381,8 @@ app.post('/postReport', (req, res) => {
                     'callback_id': 'issue_update',
                     'title': 'Update issue status',
                     'submit_label': 'Update',
+                    // When user will submit a dialog, original message will no longer be available.
+                    // Thus we are saving it to the state property to be able to access it when processing dialog submission
                     'state': JSON.stringify(payload.message),
                     'elements': [
                         {
@@ -341,58 +421,7 @@ function sendAndAknowledge(res, req) {
 // Posts confirmation message so user can preview the resulting message
 function postPreview(res, user_id, form) {
     var now = getCurrentTimeFormatted();
-    var blocks = [
-        {
-            'type': 'section',
-            'text':
-            {
-                "type": "mrkdwn",
-                "text": "Here is how your message will look like"
-            }
-        },
-        {
-            'type': 'section',
-            'fields': [
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Issue and cause*\n' + form.issue
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Impact*\n' + form.impact
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Start Time*\n' + form.start_time
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Expected resolution/update time*\n' + form.time
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Status*\n:red_circle: - Ongoing'
-                }
-            ]
-        },
-        {
-            'type': 'context',
-            'elements': [
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Published by:* ' + '<@' + user_id + '>'
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Last updated:* ' + now
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '<!here>'
-                }
-            ]
-        }
-    ];
+    var blocks = getInitialBlocks(form, user_id);
 
     slack.chat.postMessage({
         'channel': user_id,
@@ -430,7 +459,7 @@ function postPreview(res, user_id, form) {
             res.send();
         })
         .catch((reason) => {
-            console.log('FAIL\nReason: ' + reason)
+            console.log('FAIL\nReason: ' + reason);
             res.send(500);
         })
 }
