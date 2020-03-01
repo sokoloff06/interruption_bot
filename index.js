@@ -148,10 +148,6 @@ function getInitialBlocks(form, user_id) {
                 {
                     'type': 'mrkdwn',
                     'text': '*Status*\n:red_circle: - Ongoing'
-                },
-                {
-                    'type': 'mrkdwn',
-                    'text': '*Updates log:*\n'
                 }
             ]
         },
@@ -171,6 +167,16 @@ function getInitialBlocks(form, user_id) {
                     'text': '<!here>'
                 }
             ]
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*Updates Log:*"
+            }
         }
     ];
     return json;
