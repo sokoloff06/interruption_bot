@@ -175,7 +175,12 @@ function getInitialBlocks(form, user_id) {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "*Updates Log:*"
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "*Updates Log*"
+                    }
+                ]
             }
         }
     ];
@@ -259,7 +264,6 @@ app.post('/postReport', (req, res) => {
                             break;
                         }
                     }
-                    break;
                 }
             }
             if  (!updated) {
