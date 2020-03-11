@@ -357,6 +357,7 @@ app.post('/postReport', (req, res) => {
             slack.chat.update({
                 'text': 'Interruption message updated!',
                 'channel': payload.channel.id,
+                'replace_original': true,
                 'ts': originalMessageFromState.ts,
                 'blocks': blocks
             })
@@ -436,7 +437,8 @@ app.post('/postReport', (req, res) => {
             var num_of_fields = blocks[0].fields.length;
             blocks[0].fields[num_of_fields - 1].text = '*Status*\n:white_check_mark: - Resolved';
             delete blocks[0].accessory;
-            blocks[1].elements[1].text = '*Resolved:* ' + getCurrentTimeFormatted();
+            blocks[0].accessory = accessoryUnresolve;
+            blocks[1].elements[1].text = '*Updated:* ' + getCurrentTimeFormatted();
             request.post(payload.response_url, {
                 json: {
                     'text': 'Interruption message updated!',
@@ -450,6 +452,44 @@ app.post('/postReport', (req, res) => {
                     slack.chat.postMessage(
                         {
                             'text': '_Resolved by <@' + payload.user.id + '>_',
+                            'channel': payload.channel.id,
+                            'thread_ts': payload.message.ts
+                        }
+                    ).then((result) => {
+                        console.log('SUCCESS\nResult: ' + result);
+                        res.send();
+                    })
+                        .catch((error) => {
+                            console.log('FAIL\nReason: ' + error);
+                            res.sendStatus(500);
+                        })
+                })
+                .on('error', (error) => {
+                    console.error(error);
+                    res.send(500);
+                })
+        }
+        // Unresolving (if issue re-occured or was resolved by mistake)
+        else if (payload.actions[0].selected_option.text.text == 'Unresolve') {
+            var blocks = payload.message.blocks;
+            var num_of_fields = blocks[0].fields.length;
+            blocks[0].fields[num_of_fields - 1].text = '*Status*\n:red_circle: - Ongoing';
+            delete blocks[0].accessory;
+            blocks[0].accessory = accessoryResolve;
+            blocks[1].elements[1].text = '*Updated:* ' + getCurrentTimeFormatted();
+            request.post(payload.response_url, {
+                json: {
+                    'text': 'Interruption message updated!',
+                    'channel': payload.channel.id,
+                    'replace_original': true,
+                    'blocks': blocks
+                }
+            })
+                .on('response', (result) => {
+                    console.log('SUCCESS\nResult: ' + result);
+                    slack.chat.postMessage(
+                        {
+                            'text': '_Unresolved by <@' + payload.user.id + '>_',
                             'channel': payload.channel.id,
                             'thread_ts': payload.message.ts
                         }
