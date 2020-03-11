@@ -80,6 +80,7 @@ const accessoryUnresolve = {
     ],
     'action_id': 'overflow'
 };
+
 function getDialogJson(trigger_id) {
     var now = getCurrentTimeFormatted();
     return {
@@ -134,6 +135,7 @@ function getDialogJson(trigger_id) {
         'trigger_id': trigger_id
     };
 }
+
 function getInitialBlocks(form, user_id) {
     var now = getCurrentTimeFormatted();
     return [
@@ -189,6 +191,7 @@ function getInitialBlocks(form, user_id) {
         }
     ];
 }
+
 function getUpdateLogBlocks() {
     return [
         {
@@ -216,6 +219,7 @@ function openDialog(trigger_id) {
         }
     });
 }
+
 // Execute new request and give a response on completion
 function sendAndAknowledge(res, req) {
     req
@@ -228,6 +232,7 @@ function sendAndAknowledge(res, req) {
             res.send();
         });
 }
+
 // Posts confirmation message so user can preview the resulting message
 function postPreview(res, user_id, form) {
     var now = getCurrentTimeFormatted();
@@ -273,6 +278,7 @@ function postPreview(res, user_id, form) {
             res.sendStatus(500);
         })
 }
+
 function getCurrentTimeFormatted() {
     var today = new Date();
     return today.toLocaleString('en-us', {
@@ -287,10 +293,11 @@ function getCurrentTimeFormatted() {
         timeZoneName: 'short'
     });
 }
+
 function updateBlock(payload, block) {
     var updated = false;
     var now = getCurrentTimeFormatted();
-    if (block.type === "context"){
+    if (block.type === "context") {
         block.elements[1].text = '*Updated:* ' + now;
     }
     if (block.type === "section" && block.text != null && block.text.text.includes("Updates Log")) {
