@@ -30,6 +30,25 @@ const store = new Map(Object.entries({
 }));
 const slack = new WebClient(store.get('bot_token'));
 
+// Workspace credentials and params
+var app_token;
+var bot_token;
+var bot_user;
+var team_name;
+var interChannel; //ID of the interruption channel
+
+// Loading params from the storage file to RAM if it exists
+if (store.has('app_token')) {
+    app_token = store.get('app_token');
+    bot_token = store.get('bot_token');
+    bot_user = store.get('bot_user');
+    team_name = store.get('team_name');
+    interChannel = store.get('channel_id');
+}
+
+app.use(express.json());
+app.use(express.urlencoded({extended: true}));
+
 // JSONs
 const accessoryResolve = {
     'type': 'overflow',
@@ -61,7 +80,6 @@ const accessoryUnresolve = {
     ],
     'action_id': 'overflow'
 };
-
 function getDialogJson(trigger_id) {
     var now = getCurrentTimeFormatted();
     return {
@@ -116,7 +134,6 @@ function getDialogJson(trigger_id) {
         'trigger_id': trigger_id
     };
 }
-
 function getInitialBlocks(form, user_id) {
     var now = getCurrentTimeFormatted();
     return [
@@ -172,7 +189,6 @@ function getInitialBlocks(form, user_id) {
         }
     ];
 }
-
 function getUpdateLogBlocks() {
     return [
         {
@@ -189,29 +205,6 @@ function getUpdateLogBlocks() {
     ]
 }
 
-// Workspace credentials and params
-var app_token;
-var bot_token;
-var bot_user;
-var team_name;
-var interChannel; //ID of the interruption channel
-
-// Loading params from the storage file to RAM if it exists
-if (store.has('app_token')) {
-    app_token = store.get('app_token');
-    bot_token = store.get('bot_token');
-    bot_user = store.get('bot_user');
-    team_name = store.get('team_name');
-    interChannel = store.get('channel_id');
-}
-
-app.use(express.json());
-app.use(express.urlencoded({extended: true}));
-
-// Test response for the GET request from browser
-app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
-app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
-
 // Opens up the dialog in slack
 function openDialog(trigger_id) {
     var now = getCurrentTimeFormatted();
@@ -223,6 +216,94 @@ function openDialog(trigger_id) {
         }
     });
 }
+// Execute new request and give a response on completion
+function sendAndAknowledge(res, req) {
+    req
+        .on('error', (error) => {
+            console.error(error);
+            res.send(500, 'Opps, something went wrong :O');
+        })
+        .on('response', (response) => {
+            console.log('SUCCESS');
+            res.send();
+        });
+}
+// Posts confirmation message so user can preview the resulting message
+function postPreview(res, user_id, form) {
+    var now = getCurrentTimeFormatted();
+    var blocks = getInitialBlocks(form, user_id);
+
+    slack.chat.postMessage({
+        'channel': user_id,
+        'text': 'Here is how your message will look like',
+        'blocks': blocks,
+        'delete_original': true,
+        'attachments': [
+            {
+                'text': 'Do you want to publish?',
+                'fallback': 'You are unable to publish a message',
+                'callback_id': 'publish',
+                'color': '#3AA3E3',
+                'attachment_type': 'default',
+                'actions': [
+                    {
+                        'name': 'publish',
+                        'text': 'Yes',
+                        'type': 'button',
+                        'value': 'yes',
+                        'style': 'primary'
+                    },
+                    {
+                        'name': 'cancel',
+                        'text': 'Cancel',
+                        'type': 'button',
+                        'value': 'cancel',
+                        'style': 'danger'
+                    }
+                ]
+            }
+        ]
+    })
+        .then((result) => {
+            console.log('SUCCESS\nResult: ' + result);
+            res.send();
+        })
+        .catch((reason) => {
+            console.log('FAIL\nReason: ' + reason);
+            res.sendStatus(500);
+        })
+}
+function getCurrentTimeFormatted() {
+    var today = new Date();
+    return today.toLocaleString('en-us', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Jerusalem',
+        timeZoneName: 'short'
+    });
+}
+function updateBlock(payload, block) {
+    var updated = false;
+    var now = getCurrentTimeFormatted();
+    if (block.type === "context"){
+        block.elements[1].text = '*Updated:* ' + now;
+    }
+    if (block.type === "section" && block.text != null && block.text.text.includes("Updates Log")) {
+        block.text.text += "\n*" + now + "*: " + payload.submission.update_details.trim() + " _by <@" + payload.user.id + ">_\n";
+        updated = true;
+    }
+    return updated;
+}
+
+// Test response for the GET request from browser
+app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
+app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
+
 
 // 'report' command handler, checks if channel ID is specified and opens dialog
 app.post('/', (req, res) => {
@@ -236,43 +317,33 @@ app.post('/', (req, res) => {
         res.send('Please, add ID of the service interruption channel (as channel_id) to the environment variables and restart the lamdba');
     }
 });
-
-function checkAndAppendLog(payload, block) {
-    var updated = false;
-    if (block.type === "section" && block.text != null && block.text.text.includes("Updates Log")) {
-        block.text.text += "\n" + now + ": " + payload.submission.update_details + " _by <@" + payload.user.id + ">_\n";
-        updated = true;
-    }
-    return updated;
-}
-
 // General endpoint, see comments inside
 app.post('/postReport', (req, res) => {
     var payload = JSON.parse(req.body.payload);
     // Responding to dialogs submissions
-    if (payload.type == 'dialog_submission') {
+    if (payload.type === 'dialog_submission') {
         // Issue report dialog processor
-        if (payload.callback_id == 'issue_report') {
+        if (payload.callback_id === 'issue_report') {
             var form = payload.submission;
             console.log(form);
             postPreview(res, payload.user.id, form);
         }
         // Issue update dialog processor
-        else if (payload.callback_id == 'issue_update') {
+        else if (payload.callback_id === 'issue_update') {
             var originalMessageFromState = JSON.parse(payload.state);
             var blocks = originalMessageFromState.blocks;
             var now = getCurrentTimeFormatted();
             var updated = false;
             for (var i = 0; i < blocks.length; i++) {
                 let block = blocks[i];
-                updated = checkAndAppendLog(payload, block);
+                updated = updateBlock(payload, block);
                 if (updated) {
                     break;
                 }
             }
             if (!updated) {
                 getUpdateLogBlocks().forEach((block) => {
-                    updated = checkAndAppendLog(payload, block);
+                    updated = updateBlock(payload, block);
                     blocks.push(block);
                 });
             }
@@ -420,77 +491,3 @@ app.post('/postReport', (req, res) => {
         }
     }
 });
-
-// Execute new request and give a response on completion
-function sendAndAknowledge(res, req) {
-    req
-        .on('error', (error) => {
-            console.error(error);
-            res.send(500, 'Opps, something went wrong :O');
-        })
-        .on('response', (response) => {
-            console.log('SUCCESS');
-            res.send();
-        });
-}
-
-// Posts confirmation message so user can preview the resulting message
-function postPreview(res, user_id, form) {
-    var now = getCurrentTimeFormatted();
-    var blocks = getInitialBlocks(form, user_id);
-
-    slack.chat.postMessage({
-        'channel': user_id,
-        'text': 'Here is how your message will look like',
-        'blocks': blocks,
-        'delete_original': true,
-        'attachments': [
-            {
-                'text': 'Do you want to publish?',
-                'fallback': 'You are unable to publish a message',
-                'callback_id': 'publish',
-                'color': '#3AA3E3',
-                'attachment_type': 'default',
-                'actions': [
-                    {
-                        'name': 'publish',
-                        'text': 'Yes',
-                        'type': 'button',
-                        'value': 'yes',
-                        'style': 'primary'
-                    },
-                    {
-                        'name': 'cancel',
-                        'text': 'Cancel',
-                        'type': 'button',
-                        'value': 'cancel',
-                        'style': 'danger'
-                    }
-                ]
-            }
-        ]
-    })
-        .then((result) => {
-            console.log('SUCCESS\nResult: ' + result);
-            res.send();
-        })
-        .catch((reason) => {
-            console.log('FAIL\nReason: ' + reason);
-            res.sendStatus(500);
-        })
-}
-
-function getCurrentTimeFormatted() {
-    var today = new Date();
-    return today.toLocaleString('en-us', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Jerusalem',
-        timeZoneName: 'short'
-    });
-}
