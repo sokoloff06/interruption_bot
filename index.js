@@ -4,7 +4,7 @@ const express = require('express');
 const request = require('request');
 const dotenv = require('dotenv');
 const awsServerlessExpress = require('aws-serverless-express');
-const { WebClient } = require('@slack/web-api');
+const {WebClient} = require('@slack/web-api');
 const app = express();
 const port = 3000;
 app.listen(port, () => console.log(`App listening on port ${port}!`));
@@ -61,6 +61,7 @@ const accessoryUnresolve = {
     ],
     'action_id': 'overflow'
 };
+
 function getDialogJson(trigger_id) {
     var now = getCurrentTimeFormatted();
     return {
@@ -115,9 +116,10 @@ function getDialogJson(trigger_id) {
         'trigger_id': trigger_id
     };
 }
+
 function getInitialBlocks(form, user_id) {
     var now = getCurrentTimeFormatted();
-    var json = [
+    return [
         {
             'type': 'section',
             'text':
@@ -167,24 +169,24 @@ function getInitialBlocks(form, user_id) {
                     'text': '<!here>'
                 }
             ]
-        },
+        }
+    ];
+}
+
+function getUpdateLogBlocks() {
+    return [
         {
             "type": "divider"
         },
         {
             "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": "*Updates Log*"
-                    }
-                ]
-            }
+            "text":
+                {
+                    "type": "mrkdwn",
+                    "text": "*Updates Log*"
+                }
         }
-    ];
-    return json;
+    ]
 }
 
 // Workspace credentials and params
@@ -204,7 +206,7 @@ if (store.has('app_token')) {
 }
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({extended: true}));
 
 // Test response for the GET request from browser
 app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
@@ -230,11 +232,19 @@ app.post('/', (req, res) => {
     if (interChannel !== '' && interChannel != null) {
         console.log('1');
         sendAndAknowledge(res, openDialog(trigger_id));
-    }
-    else {
+    } else {
         res.send('Please, add ID of the service interruption channel (as channel_id) to the environment variables and restart the lamdba');
     }
 });
+
+function checkAndAppendLog(payload, block) {
+    var updated = false;
+    if (block.type === "section" && block.text != null && block.text.text.includes("Updates Log")) {
+        block.text.text += "\n" + now + ": " + payload.submission.update_details + " _by <@" + payload.user.id + ">_\n";
+        updated = true;
+    }
+    return updated;
+}
 
 // General endpoint, see comments inside
 app.post('/postReport', (req, res) => {
@@ -253,28 +263,25 @@ app.post('/postReport', (req, res) => {
             var blocks = originalMessageFromState.blocks;
             var now = getCurrentTimeFormatted();
             var updated = false;
-            for (var i = 0; i < blocks.length; i++){
-                let  block = blocks[i];
-                if (block.type === "section"){
-                    for (var j = 0; j < block.fields.length; j++){
-                        let field = block.fields[j];
-                        if(field.text.includes("Updates log")) {
-                            field.text += now + ": " + payload.submission.update_details + " _by <@" + payload.user.id + ">_\n";
-                            updated = true;
-                            break;
-                        }
-                    }
+            for (var i = 0; i < blocks.length; i++) {
+                let block = blocks[i];
+                updated = checkAndAppendLog(payload, block);
+                if (updated) {
+                    break;
                 }
             }
-            if  (!updated) {
-                res.status(500).send("Cannot update message message");
-            } else {
-                slack.chat.update({
-                    'text': 'Interruption message updated!',
-                    'channel': payload.channel.id,
-                    'ts': originalMessageFromState.ts,
-                    'blocks': blocks
-                })
+            if (!updated) {
+                getUpdateLogBlocks().forEach((block) => {
+                    updated = checkAndAppendLog(payload, block);
+                    blocks.push(block);
+                });
+            }
+            slack.chat.update({
+                'text': 'Interruption message updated!',
+                'channel': payload.channel.id,
+                'ts': originalMessageFromState.ts,
+                'blocks': blocks
+            })
                 .then((result) => {
                     console.log('SUCEESS\nResult: ' + result);
                     res.send()
@@ -283,7 +290,6 @@ app.post('/postReport', (req, res) => {
                     console.log('FAIL\nReason: ' + error);
                     res.sendStatus(500);
                 });
-            }
         }
     }
     // Processes final interruption message publishing
@@ -309,14 +315,14 @@ app.post('/postReport', (req, res) => {
                         'text': 'There is a new interruption!',
                         'blocks': finalBlocks
                     })
-                    .then((result) => {
-                        console.log('SUCEESS\nResult: ' + result);
-                        res.send()
-                    })
-                    .catch((error) => {
-                        console.log('FAIL\nReason: ' + error);
-                        res.sendStatus(500);
-                    })
+                        .then((result) => {
+                            console.log('SUCEESS\nResult: ' + result);
+                            res.send()
+                        })
+                        .catch((error) => {
+                            console.log('FAIL\nReason: ' + error);
+                            res.sendStatus(500);
+                        })
                 })
                 .on('error', (error) => {
                     console.log('FAIL\nReason: ' + error);
@@ -373,10 +379,10 @@ app.post('/postReport', (req, res) => {
                         console.log('SUCCESS\nResult: ' + result);
                         res.send();
                     })
-                    .catch((error) => {
-                        console.log('FAIL\nReason: ' + error);
-                        res.sendStatus(500);
-                    })
+                        .catch((error) => {
+                            console.log('FAIL\nReason: ' + error);
+                            res.sendStatus(500);
+                        })
                 })
                 .on('error', (error) => {
                     console.error(error);
@@ -403,14 +409,14 @@ app.post('/postReport', (req, res) => {
                     ]
                 }
             })
-            .then((result) => {
-                console.log('SUCCESS\nResult: ' + result);
-                res.send();
-            })
-            .catch((error) => {
-                console.log('FAIL\nReason: ' + error);
-                res.sendStatus(500);
-            })
+                .then((result) => {
+                    console.log('SUCCESS\nResult: ' + result);
+                    res.send();
+                })
+                .catch((error) => {
+                    console.log('FAIL\nReason: ' + error);
+                    res.sendStatus(500);
+                })
         }
     }
 });
@@ -470,7 +476,7 @@ function postPreview(res, user_id, form) {
         })
         .catch((reason) => {
             console.log('FAIL\nReason: ' + reason);
-            res.send(500);
+            res.sendStatus(500);
         })
 }
 
