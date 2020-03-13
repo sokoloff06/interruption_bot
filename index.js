@@ -1,7 +1,7 @@
-// This app is only tested and designed to work with a single workspace yet
 // TODO: Make a post on the submitter's behalf
-// TODO: Make a notification when message is updated
-// TODO: Check if we can increase maximum payload size (when message is too big and has many updates, updating will stop working)
+// TODO: Make a notification when message is updated - Can only be done by sending a message to thread.
+
+// TODO: Check if we can increase maximum payload size (when message is too big and has many updates, updating will stop working) - Opened support request to Slack
 
 const express = require('express');
 const app = express();
@@ -136,6 +136,7 @@ function getInitialBlocks(form, user_id) {
     return [
         {
             'type': 'section',
+            'block_id':'preview',
             'text':
                 {
                     "type": "mrkdwn",
@@ -144,6 +145,7 @@ function getInitialBlocks(form, user_id) {
         },
         {
             'type': 'section',
+            'block_id':'body',
             'fields': [
                 {
                     'type': 'mrkdwn',
@@ -169,6 +171,7 @@ function getInitialBlocks(form, user_id) {
         },
         {
             'type': 'context',
+            'block_id':'context',
             'elements': [
                 {
                     'type': 'mrkdwn',
@@ -193,6 +196,7 @@ function getUpdateLogBlocks() {
         },
         {
             "type": "section",
+            'block_id':'updates',
             "text":
                 {
                     "type": "mrkdwn",
@@ -334,7 +338,6 @@ app.post('/postReport', (req, res) => {
         else if (payload.callback_id === 'issue_update') {
             var originalMessageFromState = JSON.parse(payload.state);
             var blocks = originalMessageFromState.blocks;
-            var now = getCurrentTimeFormatted();
             var updated = false;
             for (var i = 0; i < blocks.length; i++) {
                 let block = blocks[i];
