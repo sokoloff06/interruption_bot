@@ -10,7 +10,7 @@ const app = express();
 const DEBUG = true;
 if (DEBUG) {
     const dotenv = require('dotenv');
-    var envResult = dotenv.config();
+    const envResult = dotenv.config();
     console.log(envResult);
 } else {
     const awsServerlessExpress = require('aws-serverless-express');
@@ -77,6 +77,7 @@ const accessoryUnresolve = {
     ],
     'action_id': 'overflow'
 };
+
 function getDialogJson(trigger_id) {
     var now = getCurrentTimeFormatted();
     return {
@@ -131,12 +132,13 @@ function getDialogJson(trigger_id) {
         'trigger_id': trigger_id
     };
 }
+
 function getInitialBlocks(form, user_id) {
     var now = getCurrentTimeFormatted();
     return [
         {
             'type': 'section',
-            'block_id':'preview',
+            'block_id': 'preview',
             'text':
                 {
                     "type": "mrkdwn",
@@ -145,7 +147,7 @@ function getInitialBlocks(form, user_id) {
         },
         {
             'type': 'section',
-            'block_id':'body',
+            'block_id': 'body',
             'fields': [
                 {
                     'type': 'mrkdwn',
@@ -171,7 +173,7 @@ function getInitialBlocks(form, user_id) {
         },
         {
             'type': 'context',
-            'block_id':'context',
+            'block_id': 'context',
             'elements': [
                 {
                     'type': 'mrkdwn',
@@ -189,6 +191,7 @@ function getInitialBlocks(form, user_id) {
         }
     ];
 }
+
 function getUpdateLogBlocks() {
     return [
         {
@@ -196,7 +199,7 @@ function getUpdateLogBlocks() {
         },
         {
             "type": "section",
-            'block_id':'updates',
+            'block_id': 'updates',
             "text":
                 {
                     "type": "mrkdwn",
@@ -208,7 +211,6 @@ function getUpdateLogBlocks() {
 
 // Opens up the dialog in slack
 function openDialog(trigger_id) {
-    var now = getCurrentTimeFormatted();
     return request.post('https://slack.com/api/dialog.open', {
         json: getDialogJson(trigger_id),
         headers: {
@@ -217,21 +219,22 @@ function openDialog(trigger_id) {
         }
     });
 }
+
 // Execute new request and give a response on completion
-function sendAndAknowledge(res, req) {
+function sendAndAcknowledge(res, req) {
     req
         .on('error', (error) => {
             console.error(error);
-            res.send(500, 'Opps, something went wrong :O');
+            res.send(500, 'Oops, something went wrong :O');
         })
         .on('response', (response) => {
-            console.log('SUCCESS');
+            console.log('SUCCESS' + response);
             res.send();
         });
 }
+
 // Posts confirmation message so user can preview the resulting message
 function postPreview(res, user_id, form) {
-    var now = getCurrentTimeFormatted();
     var blocks = getInitialBlocks(form, user_id);
 
     slack.chat.postMessage({
@@ -274,6 +277,7 @@ function postPreview(res, user_id, form) {
             res.sendStatus(500);
         })
 }
+
 function getCurrentTimeFormatted() {
     var today = new Date();
     return today.toLocaleString('en-us', {
@@ -288,6 +292,7 @@ function getCurrentTimeFormatted() {
         timeZoneName: 'short'
     });
 }
+
 function updateBlock(payload, block) {
     var updated = false;
     var now = getCurrentTimeFormatted();
@@ -314,13 +319,12 @@ app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>
 // 'report' command handler, checks if channel ID is specified and opens dialog
 app.post('/', (req, res) => {
     var body = req.body;
-    var channel = body.channel_id;
     var trigger_id = body.trigger_id;
     if (channel_id !== '' && channel_id != null) {
         console.log('1');
-        sendAndAknowledge(res, openDialog(trigger_id));
+        sendAndAcknowledge(res, openDialog(trigger_id));
     } else {
-        res.send('Please, add ID of the service interruption channel (as channel_id) to the environment variables and restart the lamdba');
+        res.send('Please, add ID of the service interruption channel (as channel_id) to the environment variables and restart the lambda');
     }
 });
 // General endpoint, see comments inside
@@ -360,7 +364,7 @@ app.post('/postReport', (req, res) => {
                 'blocks': blocks
             })
                 .then((result) => {
-                    console.log('SUCEESS\nResult: ' + result);
+                    console.log('SUCCESS\nResult: ' + result);
                     res.send()
                 })
                 .catch((error) => {
@@ -373,7 +377,7 @@ app.post('/postReport', (req, res) => {
     else if (payload.type === 'interactive_message') {
         // User decides to publish
         if (payload.actions[0].value === 'yes') {
-            // Send aknowledgment and remove preview.
+            // Send acknowledgment and remove preview.
             request.post(payload.response_url, {
                 json: {
                     'text': 'Thank you for submitting service interruption report!',
@@ -393,7 +397,7 @@ app.post('/postReport', (req, res) => {
                         'blocks': finalBlocks
                     })
                         .then((result) => {
-                            console.log('SUCEESS\nResult: ' + result);
+                            console.log('SUCCESS\nResult: ' + result);
                             res.send()
                         })
                         .catch((error) => {
@@ -407,7 +411,7 @@ app.post('/postReport', (req, res) => {
                 })
         }
         // User cancels publishing the message
-        else if (payload.actions[0].value == 'cancel') {
+        else if (payload.actions[0].value === 'cancel') {
             // Send info message that message was discarded
             request.post(payload.response_url, {
                 json: {
@@ -428,9 +432,9 @@ app.post('/postReport', (req, res) => {
         }
     }
     // Responding to interactive button click
-    else if (payload.type == 'block_actions') {
+    else if (payload.type === 'block_actions') {
         // Resolving the issue
-        if (payload.actions[0].selected_option.text.text == 'Resolve') {
+        if (payload.actions[0].selected_option.text.text === 'Resolve') {
             var blocks = payload.message.blocks;
             var num_of_fields = blocks[0].fields.length;
             blocks[0].fields[num_of_fields - 1].text = '*Status*\n:white_check_mark: - Resolved';
@@ -468,7 +472,7 @@ app.post('/postReport', (req, res) => {
                 })
         }
         // Unresolving (if issue re-occured or was resolved by mistake)
-        else if (payload.actions[0].selected_option.text.text == 'Unresolve') {
+        else if (payload.actions[0].selected_option.text.text === 'Unresolve') {
             var blocks = payload.message.blocks;
             var num_of_fields = blocks[0].fields.length;
             blocks[0].fields[num_of_fields - 1].text = '*Status*\n:red_circle: - Ongoing';
@@ -506,7 +510,7 @@ app.post('/postReport', (req, res) => {
                 })
         }
         // Opens  dialog to submit an update
-        else if (payload.actions[0].selected_option.text.text == 'Update') {
+        else if (payload.actions[0].selected_option.text.text === 'Update') {
             slack.dialog.open({
                 'trigger_id': payload.trigger_id,
                 'dialog': {
