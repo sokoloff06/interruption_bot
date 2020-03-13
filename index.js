@@ -1,53 +1,50 @@
 // This app is only tested and designed to work with a single workspace yet
 // TODO: Make a post on the submitter's behalf
-const express = require('express');
-const request = require('request');
-const dotenv = require('dotenv');
-const awsServerlessExpress = require('aws-serverless-express');
-const {WebClient} = require('@slack/web-api');
-const app = express();
-const port = 3000;
-app.listen(port, () => console.log(`App listening on port ${port}!`));
-const server = awsServerlessExpress.createServer(app);
-exports.handler = (event, context) => {
-    console.log('EVENT: ' + JSON.stringify(event));
-    awsServerlessExpress.proxy(server, event, context);
-};
-var envResult = dotenv.config();
-console.log(envResult);
+// TODO: Make a notification when message is updated
+// TODO: Check if we can increase maximum payload size (when message is too big and has many updates, updating will stop working)
 
-//TODO: Think of other object type instead of Map
-const store = new Map(Object.entries({
-    client_id: process.env.CLIENT_ID,
-    client_secret: process.env.CLIENT_SECRET,
-    app_token: process.env.APP_TOKEN,
-    bot_token: process.env.BOT_TOKEN,
-    bot_user: process.env.BOT_USER,
-    team_name: process.env.TEAM_NAME,
-    admin_user: process.env.ADMIN_USER,
-    channel_id: process.env.CHANNEL_ID,
-    request_url: process.env.REQUEST_URL
-}));
-const slack = new WebClient(store.get('bot_token'));
+const express = require('express');
+const app = express();
+
+// If true - running on local machine, if false - on AWS lambda
+const DEBUG = true;
+if (DEBUG) {
+    const dotenv = require('dotenv');
+    var envResult = dotenv.config();
+    console.log(envResult);
+} else {
+    const awsServerlessExpress = require('aws-serverless-express');
+    const server = awsServerlessExpress.createServer(app);
+    exports.handler = (event, context) => {
+        console.log('EVENT: ' + JSON.stringify(event));
+        awsServerlessExpress.proxy(server, event, context);
+    };
+}
+
+
+const request = require('request');
+const {WebClient} = require('@slack/web-api');
+const port = 3000;
 
 // Workspace credentials and params
-var app_token;
-var bot_token;
-var bot_user;
-var team_name;
-var interChannel; //ID of the interruption channel
+let app_token;
+let bot_token;
+let channel_id; //ID of the interruption channel
+
+const store = new Map(Object.entries({
+    app_token: process.env.APP_TOKEN,
+    bot_token: process.env.BOT_TOKEN,
+    channel_id: process.env.CHANNEL_ID,
+    client_id: process.env.CLIENT_ID,
+    client_secret: process.env.CLIENT_SECRET
+}));
 
 // Loading params from the storage file to RAM if it exists
 if (store.has('app_token')) {
     app_token = store.get('app_token');
     bot_token = store.get('bot_token');
-    bot_user = store.get('bot_user');
-    team_name = store.get('team_name');
-    interChannel = store.get('channel_id');
+    channel_id = store.get('channel_id');
 }
-
-app.use(express.json());
-app.use(express.urlencoded({extended: true}));
 
 // JSONs
 const accessoryResolve = {
@@ -80,7 +77,6 @@ const accessoryUnresolve = {
     ],
     'action_id': 'overflow'
 };
-
 function getDialogJson(trigger_id) {
     var now = getCurrentTimeFormatted();
     return {
@@ -135,7 +131,6 @@ function getDialogJson(trigger_id) {
         'trigger_id': trigger_id
     };
 }
-
 function getInitialBlocks(form, user_id) {
     var now = getCurrentTimeFormatted();
     return [
@@ -191,7 +186,6 @@ function getInitialBlocks(form, user_id) {
         }
     ];
 }
-
 function getUpdateLogBlocks() {
     return [
         {
@@ -219,7 +213,6 @@ function openDialog(trigger_id) {
         }
     });
 }
-
 // Execute new request and give a response on completion
 function sendAndAknowledge(res, req) {
     req
@@ -232,7 +225,6 @@ function sendAndAknowledge(res, req) {
             res.send();
         });
 }
-
 // Posts confirmation message so user can preview the resulting message
 function postPreview(res, user_id, form) {
     var now = getCurrentTimeFormatted();
@@ -278,7 +270,6 @@ function postPreview(res, user_id, form) {
             res.sendStatus(500);
         })
 }
-
 function getCurrentTimeFormatted() {
     var today = new Date();
     return today.toLocaleString('en-us', {
@@ -293,7 +284,6 @@ function getCurrentTimeFormatted() {
         timeZoneName: 'short'
     });
 }
-
 function updateBlock(payload, block) {
     var updated = false;
     var now = getCurrentTimeFormatted();
@@ -301,15 +291,20 @@ function updateBlock(payload, block) {
         block.elements[1].text = '*Updated:* ' + now;
     }
     if (block.type === "section" && block.text != null && block.text.text.includes("Updates Log")) {
-        block.text.text += "\n*" + now + "*: " + payload.submission.update_details.trim() + " _by <@" + payload.user.id + ">_\n";
+        block.text.text += "\n*" + now + "*: " + payload.submission.update_details.trim() + " _by <@" + payload.user.id + ">_";
         updated = true;
     }
     return updated;
 }
 
+const slack = new WebClient(store.get('bot_token'));
+app.use(express.json());
+app.use(express.urlencoded({extended: true}));
+app.listen(port, () => console.log(`App listening on port ${port}!`));
+
 // Test response for the GET request from browser
-app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
-app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>' + '<p>Interruption helper app is running</p><br>'));
+app.get('/', (req, res) => res.send('<p>Hello!</p>' + '<p>Service interruption bot is running</p><br>'));
+app.get('/service-interruption-slackbot/', (req, res) => res.send('<p>Hello!</p>' + '<p>Service interruption bot is running</p><br>'));
 
 
 // 'report' command handler, checks if channel ID is specified and opens dialog
@@ -317,7 +312,7 @@ app.post('/', (req, res) => {
     var body = req.body;
     var channel = body.channel_id;
     var trigger_id = body.trigger_id;
-    if (interChannel !== '' && interChannel != null) {
+    if (channel_id !== '' && channel_id != null) {
         console.log('1');
         sendAndAknowledge(res, openDialog(trigger_id));
     } else {
@@ -372,9 +367,9 @@ app.post('/postReport', (req, res) => {
         }
     }
     // Processes final interruption message publishing
-    else if (payload.type == 'interactive_message') {
+    else if (payload.type === 'interactive_message') {
         // User decides to publish
-        if (payload.actions[0].value == 'yes') {
+        if (payload.actions[0].value === 'yes') {
             // Send aknowledgment and remove preview.
             request.post(payload.response_url, {
                 json: {
@@ -390,7 +385,7 @@ app.post('/postReport', (req, res) => {
                     finalBlocks[0].accessory = accessoryResolve;
                     console.log('SUCCESS\nResult: ' + result);
                     slack.chat.postMessage({
-                        'channel': interChannel,
+                        'channel': channel_id,
                         'text': 'There is a new interruption!',
                         'blocks': finalBlocks
                     })
